@@ -1406,12 +1406,17 @@ class HFLM(TemplateLM):
             )
 
             cont_toks_list = cont.tolist()
-            for cont_toks, context in zip(cont_toks_list, contexts):
+            for i, (cont_toks, context) in enumerate(zip(cont_toks_list, contexts)):
                 # discard context + left-padding toks if using causal decoder-only LM
                 if self.backend == "causal":
-                    cont_toks = cont_toks[context_enc.shape[1] :]
+                    s_full = self.tok_decode(cont_toks)
+                    s_input = self.tok_decode(context_enc[i])
 
-                s = self.tok_decode(cont_toks)
+                    if not s_full.startswith(s_input):
+                        raise ValueError(f"s_full: {s_full} does not start with s_input: {s_input}")
+                    s = s_full[len(s_input):]
+                else:
+                    s = self.tok_decode(cont_toks)
 
                 # use secondary stop seqs to cut off should-have-been-stopped content post-hoc
                 for term in until:

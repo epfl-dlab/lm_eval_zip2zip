@@ -242,15 +242,24 @@ class MultiTokenEOSCriteria(transformers.StoppingCriteria):
 
     def __call__(self, input_ids, scores, **kwargs) -> bool:
         # For efficiency, we compare the last n tokens where n is the number of tokens in the stop_sequence
-        lookback_ids_batch = input_ids[:, self.initial_decoder_input_length :]
 
-        lookback_ids_batch = lookback_ids_batch[:, -self.sequence_id_len :]
+        initial_decode_input: List[str] = self.tokenizer.batch_decode(input_ids[:, :self.initial_decoder_input_length])
 
-        lookback_tokens_batch = self.tokenizer.batch_decode(lookback_ids_batch)
+        current_decode_input: List[str] = self.tokenizer.batch_decode(input_ids)
 
+        # check that it's prefix
+        for i, (initial_decode_input_i, current_decode_input_i) in enumerate(zip(initial_decode_input, current_decode_input)):
+            if not current_decode_input_i.startswith(initial_decode_input_i):
+                raise ValueError(f"Current decode input {current_decode_input_i} is not a left-prefix of initial decode input {initial_decode_input_i}")
+
+        # remove the common prefix
+        generated_text: List[str] = [
+            current_decode_input[i][len(initial_decode_input[i]):]
+            for i in range(len(current_decode_input))
+        ]
         for i, done in enumerate(self.done_tracker):
             if not done:
-                self.done_tracker[i] = self.sequence in lookback_tokens_batch[i]
+                self.done_tracker[i] = self.sequence in generated_text[i]
         return False not in self.done_tracker
 
 
